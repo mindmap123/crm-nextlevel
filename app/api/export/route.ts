@@ -6,9 +6,11 @@ import { STATUS_LABEL, TAG_LABEL, SOURCE_LABEL } from "@/lib/constants";
 const COLUMNS: Record<string, (l: Record<string, unknown>) => string | number | null> = {
   companyName: (l) => l.companyName as string,
   contactName: (l) => (l.contactName as string) ?? "",
+  district: (l) => (l.district as string) ?? "",
   phone: (l) => (l.phone as string) ?? "",
   email: (l) => (l.email as string) ?? "",
   website: (l) => (l.website as string) ?? "",
+  googleMapsUrl: (l) => (l.googleMapsUrl as string) ?? "",
   address: (l) => (l.address as string) ?? "",
   city: (l) => (l.city as string) ?? "",
   category: (l) => (l.category as string) ?? "",
@@ -17,7 +19,9 @@ const COLUMNS: Record<string, (l: Record<string, unknown>) => string | number | 
   reviewCount: (l) => (l.reviewCount as number) ?? "",
   hasWebsite: (l) => (l.hasWebsite ? "Oui" : "Non"),
   score: (l) => l.score as number,
+  priority: (l) => (l.priority as string) ?? "",
   status: (l) => STATUS_LABEL[l.status as keyof typeof STATUS_LABEL] ?? "",
+  internalNotes: (l) => (l.internalNotes as string) ?? "",
   tags: (l) => (l.tags as string[]).map((t) => TAG_LABEL[t as keyof typeof TAG_LABEL]).join("; "),
 };
 const EXPORT_LIMIT = 5000;

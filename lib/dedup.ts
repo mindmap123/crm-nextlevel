@@ -7,6 +7,7 @@ export interface DedupCandidate {
   normPhone: string | null;
   normEmail: string | null;
   normDomain: string | null;
+  normGoogleMapsUrl?: string | null;
   normName: string | null;
   normCity?: string | null;
   city?: string | null;
@@ -67,6 +68,12 @@ export function findDuplicate(
       strongMatches.push({ existing: e, reason: "Email identique" });
     if (candidate.normDomain && e.normDomain && candidate.normDomain === e.normDomain)
       strongMatches.push({ existing: e, reason: "Domaine identique" });
+    if (
+      candidate.normGoogleMapsUrl &&
+      e.normGoogleMapsUrl &&
+      candidate.normGoogleMapsUrl === e.normGoogleMapsUrl
+    )
+      strongMatches.push({ existing: e, reason: "URL Google Maps identique" });
     if (
       candidate.normName &&
       e.normName &&

@@ -1,25 +1,48 @@
-import type { LeadInput } from "./types";
+import type { Source, Status } from "@prisma/client";
+import type { LeadIngestInput } from "./lead-ingest";
 
 type RawLead = Record<string, unknown>;
+type LeadField = keyof LeadIngestInput | "googleMapsUrl" | "priority" | "notes";
 
 export type LeadPayloadResult =
-  | { ok: true; lead: LeadInput }
+  | { ok: true; lead: LeadIngestInput }
   | { ok: false; error: string; raw: RawLead };
 
-const FIELD_ALIASES: Record<keyof LeadInput, string[]> = {
-  companyName: ["companyname", "company", "businessname", "name", "nom", "nomentreprise", "entreprise", "societe", "raison sociale"],
+const FIELD_ALIASES: Record<LeadField, string[]> = {
+  companyName: [
+    "companyname",
+    "company",
+    "businessname",
+    "name",
+    "nom",
+    "nometablissement",
+    "nomentreprise",
+    "entreprise",
+    "etablissement",
+    "societe",
+    "raison sociale",
+  ],
   contactName: ["contactname", "contact", "nomcontact", "contactprincipal"],
+  district: ["district", "area", "quartier", "zone"],
   phone: ["phone", "telephone", "tel", "mobile", "portable"],
   email: ["email", "mail", "e-mail", "courriel"],
   website: ["website", "site", "siteweb", "url", "web"],
   address: ["address", "adresse"],
   city: ["city", "ville", "commune"],
   source: ["source", "origine"],
+  status: ["status", "statut"],
   category: ["category", "categorie", "catégorie", "secteur", "metier", "métier"],
   googleRating: ["googlerating", "rating", "note", "notegoogle", "etoiles", "étoiles"],
   reviewCount: ["reviewcount", "reviews", "avis", "nombredavis", "nbavis"],
   hasWebsite: ["haswebsite", "sitepresent", "asite", "siteoui"],
   technologies: ["technologies", "tech", "cms"],
+  internalNotes: ["internalnotes", "notesinternes"],
+  importBatchId: ["importbatchid"],
+  score: ["score"],
+  tags: ["tags"],
+  googleMapsUrl: ["googlemapsurl", "urlgooglemaps", "googlemaps", "liengooglemaps", "lienmaps", "mapsurl", "maps"],
+  priority: ["priority", "priorite", "priorité"],
+  notes: ["notes", "noteinterne", "commentaire", "commentaires"],
 };
 
 function key(input: string) {
@@ -51,7 +74,7 @@ function bool(value: unknown): boolean | undefined {
   return undefined;
 }
 
-function source(value: unknown): LeadInput["source"] {
+function source(value: unknown): Source {
   const s = text(value)?.toLowerCase();
   if (s?.includes("google")) return "GOOGLE_MAPS";
   if (s?.includes("sherlock")) return "SHERLOCK_MAPS";
@@ -60,13 +83,34 @@ function source(value: unknown): LeadInput["source"] {
   return "IMPORT_CSV";
 }
 
-function valueFor(raw: RawLead, field: keyof LeadInput): unknown {
+function status(value: unknown): Status | undefined {
+  const s = key(text(value) ?? "");
+  const statuses: Status[] = [
+    "BRUT",
+    "A_ENRICHIR",
+    "A_QUALIFIER",
+    "QUALIFIE",
+    "A_CONTACTER",
+    "CONTACTE",
+    "EN_DISCUSSION",
+    "PERDU",
+    "GAGNE",
+  ];
+  return statuses.find((candidate) => key(candidate) === s);
+}
+
+function valueFor(raw: RawLead, field: LeadField): unknown {
   const aliases = new Set(FIELD_ALIASES[field].map(key));
   for (const [rawKey, value] of Object.entries(raw)) {
     const normalized = key(rawKey);
     if (normalized === key(field) || aliases.has(normalized)) return value;
   }
   return undefined;
+}
+
+function combineNotes(notes: Array<string | null>) {
+  const body = notes.filter(Boolean).join("\n");
+  return body || null;
 }
 
 export function parseLeadPayloads(payload: unknown): RawLead[] {
@@ -95,23 +139,51 @@ export function mapLeadPayload(raw: RawLead): LeadPayloadResult {
     ?.split(/[;,]/)
     .map((tech) => tech.trim())
     .filter(Boolean);
+  const mapsUrl = text(valueFor(raw, "googleMapsUrl"));
+  const priority = text(valueFor(raw, "priority"));
+  const internalNotes = combineNotes([
+    text(valueFor(raw, "notes")),
+    text(valueFor(raw, "internalNotes")),
+  ]);
 
   return {
     ok: true,
     lead: {
       companyName,
       contactName: text(valueFor(raw, "contactName")),
+      district: text(valueFor(raw, "district")),
       phone: text(valueFor(raw, "phone")),
       email: text(valueFor(raw, "email")),
       website,
       address: text(valueFor(raw, "address")),
       city: text(valueFor(raw, "city")),
+      googleMapsUrl: mapsUrl,
       source: source(valueFor(raw, "source")),
+      status: status(valueFor(raw, "status")),
       category: text(valueFor(raw, "category")),
       googleRating: num(valueFor(raw, "googleRating")),
       reviewCount: num(valueFor(raw, "reviewCount")),
       hasWebsite,
       technologies: technologies ?? [],
+      internalNotes,
+      score: num(valueFor(raw, "score")),
+      priority,
     },
   };
+}
+
+export function missingLeadFields(lead: LeadIngestInput) {
+  const requiredForEnrichment: Array<keyof LeadIngestInput> = [
+    "city",
+    "phone",
+    "website",
+    "address",
+    "googleMapsUrl",
+    "reviewCount",
+    "googleRating",
+  ];
+  return requiredForEnrichment.filter((field) => {
+    const value = lead[field];
+    return value === null || value === undefined || value === "";
+  });
 }

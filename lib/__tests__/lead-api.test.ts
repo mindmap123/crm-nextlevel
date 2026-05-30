@@ -9,9 +9,15 @@ describe("mapLeadPayload", () => {
       "E-mail": "contact@atelier-martin.fr",
       "Site web": "https://atelier-martin.fr",
       "Ville": "Marseille",
+      "Quartier": "Vieux-Port",
       "Catégorie": "artisan",
       "Note Google": "4,7",
       "Nombre d'avis": "38",
+      "Lien Google Maps": "https://maps.google.com/?cid=123",
+      "Priorité": "oui",
+      "Notes": "Lead EMS Paris",
+      "Score": "82",
+      "Champ inconnu": "ignoré",
     });
 
     expect(result.ok).toBe(true);
@@ -22,10 +28,15 @@ describe("mapLeadPayload", () => {
       email: "contact@atelier-martin.fr",
       website: "https://atelier-martin.fr",
       city: "Marseille",
+      district: "Vieux-Port",
       category: "artisan",
       googleRating: 4.7,
       reviewCount: 38,
+      googleMapsUrl: "https://maps.google.com/?cid=123",
       hasWebsite: true,
+      internalNotes: "Lead EMS Paris",
+      score: 82,
+      priority: "oui",
     });
   });
 

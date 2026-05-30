@@ -51,6 +51,24 @@ export function normalizeDomain(input?: string | null): string | null {
   return host;
 }
 
+export function normalizeGoogleMapsUrl(input?: string | null): string | null {
+  if (!input) return null;
+  const raw = input.trim();
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+    url.hash = "";
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (key.toLowerCase().startsWith("utm_")) url.searchParams.delete(key);
+    }
+    const normalized = url.toString().replace(/\/$/, "");
+    return normalized || null;
+  } catch {
+    return raw.replace(/\s+/g, "").replace(/\/$/, "") || null;
+  }
+}
+
 export function normalizeName(input?: string | null): string | null {
   if (!input) return null;
   let s = stripAccents(input.toLowerCase());
@@ -74,6 +92,7 @@ export interface NormalizedKeys {
   normPhone: string | null;
   normEmail: string | null;
   normDomain: string | null;
+  normGoogleMapsUrl: string | null;
   normName: string | null;
   normCity: string | null;
 }
@@ -82,6 +101,7 @@ export function normalizeLead(lead: {
   phone?: string | null;
   email?: string | null;
   website?: string | null;
+  googleMapsUrl?: string | null;
   companyName?: string | null;
   city?: string | null;
 }): NormalizedKeys {
@@ -89,6 +109,7 @@ export function normalizeLead(lead: {
     normPhone: normalizePhone(lead.phone),
     normEmail: normalizeEmail(lead.email),
     normDomain: normalizeDomain(lead.website),
+    normGoogleMapsUrl: normalizeGoogleMapsUrl(lead.googleMapsUrl),
     normName: normalizeName(lead.companyName),
     normCity: normalizeCity(lead.city),
   };

@@ -10,29 +10,41 @@ import type { ImportFormat } from "@prisma/client";
 const FIELDS = [
   "companyName",
   "contactName",
+  "district",
   "phone",
   "email",
   "website",
+  "googleMapsUrl",
   "address",
   "city",
   "category",
   "source",
+  "status",
   "googleRating",
   "reviewCount",
+  "score",
+  "priority",
+  "internalNotes",
 ] as const;
 
 const FIELD_LABEL: Record<(typeof FIELDS)[number], string> = {
   companyName: "Nom entreprise *",
   contactName: "Nom contact",
+  district: "Quartier",
   phone: "Téléphone",
   email: "Email",
   website: "Site web",
+  googleMapsUrl: "URL Google Maps",
   address: "Adresse",
   city: "Ville",
   category: "Catégorie",
   source: "Source",
+  status: "Statut",
   googleRating: "Note Google",
   reviewCount: "Nombre d'avis",
+  score: "Score",
+  priority: "Priorité",
+  internalNotes: "Notes internes",
 };
 
 const CHUNK = 300;
@@ -42,17 +54,23 @@ function autoMap(headers: string[]): Record<string, string> {
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
   for (const h of headers) {
     const n = norm(h);
-    if (n.includes("entreprise") || n.includes("company") || n.includes("nom") && !n.includes("contact")) map[h] = "companyName";
+    if (n.includes("etablissement") || n.includes("entreprise") || n.includes("company") || n === "name" || n.includes("nom") && !n.includes("contact")) map[h] = "companyName";
     else if (n.includes("contact")) map[h] = "contactName";
+    else if (n.includes("quartier") || n.includes("district") || n.includes("area")) map[h] = "district";
     else if (n.includes("tel") || n.includes("phone")) map[h] = "phone";
     else if (n.includes("mail")) map[h] = "email";
-    else if (n.includes("site") || n.includes("web") || n.includes("url")) map[h] = "website";
+    else if (n.includes("googlemaps") || n.includes("mapsurl") || n.includes("lienmaps")) map[h] = "googleMapsUrl";
+    else if (n.includes("site") || n.includes("web") || n === "url") map[h] = "website";
     else if (n.includes("adresse") || n.includes("address")) map[h] = "address";
     else if (n.includes("ville") || n.includes("city")) map[h] = "city";
     else if (n.includes("categor")) map[h] = "category";
     else if (n.includes("source")) map[h] = "source";
+    else if (n.includes("statut") || n.includes("status")) map[h] = "status";
     else if (n.includes("note") || n.includes("rating") || n.includes("etoile")) map[h] = "googleRating";
     else if (n.includes("avis") || n.includes("review")) map[h] = "reviewCount";
+    else if (n.includes("score")) map[h] = "score";
+    else if (n.includes("priorite") || n.includes("priority")) map[h] = "priority";
+    else if (n.includes("notes") || n.includes("internalnotes")) map[h] = "internalNotes";
   }
   return map;
 }

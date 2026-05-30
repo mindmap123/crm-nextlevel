@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import Papa from "papaparse";
-import { createLeadFromApi } from "@/lib/actions";
-import { mapLeadPayload, parseLeadPayloads } from "@/lib/lead-api";
+import { prisma } from "@/lib/db";
+import { createLeadWithDedup } from "@/lib/lead-ingest";
+import { mapLeadPayload, missingLeadFields, parseLeadPayloads } from "@/lib/lead-api";
 
 export const dynamic = "force-dynamic";
 
@@ -53,9 +54,11 @@ export async function POST(req: NextRequest) {
     const results = {
       requestId,
       created: 0,
+      updated: 0,
       duplicates: 0,
       errors: [] as Array<{ row: number; error: string }>,
-      leads: [] as Array<{ row: number; id: string; duplicate: boolean }>,
+      missingFields: [] as Array<{ row: number; fields: string[] }>,
+      leads: [] as Array<{ row: number; id: string; created: boolean; updated: boolean; duplicate: boolean }>,
     };
 
     for (const [index, row] of rows.entries()) {
@@ -64,20 +67,34 @@ export async function POST(req: NextRequest) {
         results.errors.push({ row: index + 1, error: mapped.error });
         continue;
       }
+      const rowMissingFields = missingLeadFields(mapped.lead);
+      if (rowMissingFields.length > 0) {
+        results.missingFields.push({ row: index + 1, fields: rowMissingFields.map(String) });
+      }
 
-      const result = await createLeadFromApi(mapped.lead);
-      if (result.duplicate) {
-        results.duplicates++;
-      } else {
+      const result = await createLeadWithDedup(prisma, mapped.lead, {
+        activityBody: "Lead créé via API",
+        duplicateActivityBody: "Import API bloqué : doublon fort détecté",
+      });
+      if (result.created) {
         results.created++;
       }
-      results.leads.push({ row: index + 1, id: result.id, duplicate: result.duplicate });
+      if (result.duplicate) results.duplicates++;
+      if (result.updated) results.updated++;
+      results.leads.push({
+        row: index + 1,
+        id: result.id,
+        created: result.created,
+        updated: result.updated,
+        duplicate: result.duplicate,
+      });
     }
 
     console.info("[api/leads] import completed", {
       requestId,
       rows: rows.length,
       created: results.created,
+      updated: results.updated,
       duplicates: results.duplicates,
       errors: results.errors.length,
       durationMs: Date.now() - startedAt,

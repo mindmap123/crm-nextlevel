@@ -53,15 +53,17 @@ model Lead {
   id String @id @default(cuid())
 
   // Identité / coordonnées
-  companyName String
-  contactName String?
-  phone       String?
-  email       String?
-  website     String?
-  address     String?
-  city        String?
-  source      Source  @default(MANUEL)
-  category    String?
+  companyName   String
+  contactName   String?
+  district      String?
+  phone         String?
+  email         String?
+  website       String?
+  googleMapsUrl String?
+  address       String?
+  city          String?
+  source        Source  @default(MANUEL)
+  category      String?
 
   // Signaux
   googleRating Float?
@@ -73,6 +75,7 @@ model Lead {
   score          Int       @default(0)
   scoreBreakdown Json?
   status         Status    @default(BRUT)
+  priority       String?
   tags           Tag[]     @default([])
   lastContactAt  DateTime?
   nextAction     String?
@@ -80,16 +83,17 @@ model Lead {
   internalNotes  String?
 
   // Champs normalisés (dedup)
-  normPhone  String?
-  normEmail  String?
-  normDomain String?
-  normName   String?
-  normCity   String?
+  normPhone         String?
+  normEmail         String?
+  normDomain        String?
+  normGoogleMapsUrl String?
+  normName          String?
+  normCity          String?
 
   // Liens
   masterId      String?
-  master        Lead?   @relation("Duplicates", fields: [masterId], references: [id], onDelete: SetNull)
-  duplicates    Lead[]  @relation("Duplicates")
+  master        Lead?        @relation("Duplicates", fields: [masterId], references: [id], onDelete: SetNull)
+  duplicates    Lead[]       @relation("Duplicates")
   importBatchId String?
   importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
@@ -99,21 +103,25 @@ model Lead {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([normPhone])
+  @@unique([normEmail])
+  @@unique([normDomain])
+  @@unique([normGoogleMapsUrl])
+  @@unique([normName, normCity])
   @@index([status])
   @@index([score])
   @@index([city])
+  @@index([district])
+  @@index([priority])
   @@index([normPhone])
   @@index([normEmail])
   @@index([normDomain])
+  @@index([normGoogleMapsUrl])
   @@index([normName])
   @@index([normCity])
   @@index([normName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Lead_normName_trgm")
   @@index([masterId])
   @@index([tags], type: Gin, map: "Lead_tags_gin")
-  @@unique([normPhone])
-  @@unique([normEmail])
-  @@unique([normDomain])
-  @@unique([normName, normCity])
 }
 
 model Task {

@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Prisma, Status, Tag, Source, ImportFormat, Lead } from "@prisma/client";
+import type { Prisma, Status, Tag, Source, ImportFormat } from "@prisma/client";
 import { prisma } from "./db";
 import { normalizeLead } from "./normalize";
 import { scoreLead, type ScoreInput } from "./scoring";
 import { getActiveConfig } from "./config";
-import { findDuplicate, type DedupExisting } from "./dedup";
+import { createLeadWithDedup, type LeadIngestInput } from "./lead-ingest";
 import type { LeadInput, ImportRow, ImportChunkResult } from "./types";
 
 async function computeScore(input: ScoreInput) {
@@ -24,107 +24,15 @@ function revalidateLeadSurfaces(id?: string) {
   if (id) revalidatePath(`/leads/${id}`);
 }
 
-function filledCount(lead: {
-  contactName?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  website?: string | null;
-  address?: string | null;
-  city?: string | null;
-  category?: string | null;
-  googleRating?: number | null;
-  reviewCount?: number | null;
-}) {
-  return [
-    lead.contactName,
-    lead.phone,
-    lead.email,
-    lead.website,
-    lead.address,
-    lead.city,
-    lead.category,
-    lead.googleRating,
-    lead.reviewCount,
-  ].filter((v) => v !== null && v !== undefined && v !== "").length;
-}
-
-function candidateWhere(norm: ReturnType<typeof normalizeLead>): Prisma.LeadWhereInput {
-  const or = [
-    norm.normPhone ? { normPhone: norm.normPhone } : undefined,
-    norm.normEmail ? { normEmail: norm.normEmail } : undefined,
-    norm.normDomain ? { normDomain: norm.normDomain } : undefined,
-    norm.normName && norm.normCity ? { normCity: norm.normCity } : undefined,
-  ].filter(Boolean) as Prisma.LeadWhereInput[];
-
-  return or.length > 0 ? { OR: or } : { id: "__no_dedup_candidates__" };
-}
-
-function toDedupExisting(
-  lead: Pick<
-    Lead,
-    | "id"
-    | "normPhone"
-    | "normEmail"
-    | "normDomain"
-    | "normName"
-    | "normCity"
-    | "city"
-    | "contactName"
-    | "phone"
-    | "email"
-    | "website"
-    | "address"
-    | "category"
-    | "googleRating"
-    | "reviewCount"
-    | "score"
-  >,
-): DedupExisting {
-  return {
-    id: lead.id,
-    normPhone: lead.normPhone,
-    normEmail: lead.normEmail,
-    normDomain: lead.normDomain,
-    normName: lead.normName,
-    normCity: lead.normCity,
-    city: lead.city,
-    filledCount: filledCount(lead),
-    score: lead.score,
-  };
-}
-
 // ---------- CRUD lead ----------
 
-export async function createLeadFromApi(input: LeadInput) {
-  const norm = normalizeLead(input);
-  const candidates = await prisma.lead.findMany({
-    where: candidateWhere(norm),
+export async function createLeadFromApi(input: LeadIngestInput) {
+  const result = await createLeadWithDedup(prisma, input, {
+    activityBody: "Lead créé manuellement",
+    duplicateActivityBody: "Création manuelle bloquée : doublon fort détecté",
   });
-  const match = findDuplicate(norm, candidates.map(toDedupExisting));
-
-  if (match.strength === "strong" && match.existingId) {
-    await logActivity(match.existingId, "dedup", "Création manuelle bloquée : doublon fort détecté");
-    revalidateLeadSurfaces(match.existingId);
-    return { id: match.existingId, duplicate: true };
-  }
-
-  const tags = match.strength === "weak" && match.existingId ? (["DOUBLON", "A_VERIFIER"] as Tag[]) : [];
-  const masterId = match.strength === "weak" ? match.existingId : null;
-  const { score, breakdown } = await computeScore({ ...input, tags, masterId });
-  const lead = await prisma.lead.create({
-    data: {
-      ...input,
-      ...norm,
-      tags,
-      masterId,
-      score,
-      scoreBreakdown: breakdown as unknown as Prisma.InputJsonValue,
-    },
-  });
-  await logActivity(lead.id, "note", "Lead créé manuellement");
-  if (masterId) await logActivity(lead.id, "dedup", `Doublon potentiel de ${masterId}`);
-  revalidateLeadSurfaces(lead.id);
-  return { id: lead.id, duplicate: Boolean(masterId) };
+  revalidateLeadSurfaces(result.id);
+  return { id: result.id, duplicate: result.duplicate };
 }
 
 export async function createLead(input: LeadInput) {
@@ -325,6 +233,22 @@ function rowSource(s?: string): Source {
   return "IMPORT_CSV";
 }
 
+function rowStatus(s?: string): Status | undefined {
+  const value = (s ?? "").trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  const statuses: Status[] = [
+    "BRUT",
+    "A_ENRICHIR",
+    "A_QUALIFIER",
+    "QUALIFIE",
+    "A_CONTACTER",
+    "CONTACTE",
+    "EN_DISCUSSION",
+    "PERDU",
+    "GAGNE",
+  ];
+  return statuses.find((status) => status === value);
+}
+
 export async function commitImportChunk(
   batchId: string | null,
   filename: string,
@@ -333,7 +257,6 @@ export async function commitImportChunk(
   totalRows: number,
   startCursor: number,
 ): Promise<ImportChunkResult> {
-  const cfg = await getActiveConfig();
   let batch = batchId
     ? await prisma.importBatch.findUnique({ where: { id: batchId } })
     : null;
@@ -356,77 +279,44 @@ export async function commitImportChunk(
     const base = {
       companyName: row.companyName.trim(),
       contactName: row.contactName || null,
+      district: row.district || null,
       phone: row.phone || null,
       email: row.email || null,
       website: row.website || null,
+      googleMapsUrl: row.googleMapsUrl || null,
       address: row.address || null,
       city: row.city || null,
       category: row.category || null,
       source: rowSource(row.source),
+      status: rowStatus(row.status),
       googleRating: toNum(row.googleRating),
       reviewCount: toNum(row.reviewCount),
+      score: toNum(row.score),
+      priority: row.priority || null,
+      internalNotes: row.internalNotes || null,
       hasWebsite: !!(row.website && row.website.trim()),
       technologies: [] as string[],
     };
-    const norm = normalizeLead(base);
-
-    // candidats existants par clés fortes OU même ville (pour le fuzzy)
-    const candidates = await prisma.lead.findMany({
-      where: candidateWhere(norm),
-      select: {
-        id: true,
-        normPhone: true,
-        normEmail: true,
-        normDomain: true,
-        normName: true,
-        normCity: true,
-        city: true,
-        contactName: true,
-        phone: true,
-        email: true,
-        website: true,
-        address: true,
-        category: true,
-        googleRating: true,
-        reviewCount: true,
-        score: true,
-      },
-    });
-
-    const match = findDuplicate({ ...norm, city: base.city }, candidates.map(toDedupExisting));
     const tags: Tag[] = base.hasWebsite ? [] : ["SANS_SITE"];
-    let masterId: string | null = null;
+    const result = await createLeadWithDedup(
+      prisma,
+      { ...base, tags, importBatchId: batch.id },
+      {
+        activityBody: `Lead créé pendant l'import ${batch.filename}`,
+        duplicateActivityBody: `Doublon fort ignoré pendant l'import ${batch.filename}`,
+      },
+    );
 
-    if (match.strength === "strong" && match.existingId) {
-      await logActivity(match.existingId, "dedup", `Doublon fort ignoré pendant l'import ${batch.filename}`);
+    if (!result.created) {
       duplicates++;
       continue;
-    } else if (match.strength === "weak" && match.existingId) {
-      masterId = match.existingId;
-      tags.push("DOUBLON", "A_VERIFIER");
+    }
+
+    if (result.duplicate) {
       toVerify++;
     } else {
       imported++;
     }
-
-    const { score, breakdown } = scoreLead(
-      { ...base, tags, masterId },
-      cfg.weights,
-      cfg.targetCategories,
-      cfg.targetCities,
-    );
-
-    await prisma.lead.create({
-      data: {
-        ...base,
-        ...norm,
-        tags,
-        masterId,
-        importBatchId: batch.id,
-        score,
-        scoreBreakdown: breakdown as unknown as Prisma.InputJsonValue,
-      },
-    });
   }
 
   const newCursor = startCursor + rows.length;

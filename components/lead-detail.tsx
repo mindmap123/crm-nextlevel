@@ -97,8 +97,11 @@ export function LeadDetail({ lead }: { lead: FullLead }) {
               <EditField label="Email" value={lead.email} onSave={(v) => updateLead(lead.id, { email: v })} />
               <EditField label="Site web" value={lead.website} onSave={(v) => updateLead(lead.id, { website: v, hasWebsite: !!v })} />
               <EditField label="Ville" value={lead.city} onSave={(v) => updateLead(lead.id, { city: v })} />
+              <EditField label="Quartier" value={lead.district} onSave={(v) => updateLead(lead.id, { district: v })} />
               <EditField label="Catégorie" value={lead.category} onSave={(v) => updateLead(lead.id, { category: v })} />
               <EditField label="Adresse" value={lead.address} onSave={(v) => updateLead(lead.id, { address: v })} />
+              <EditField label="URL Google Maps" value={lead.googleMapsUrl} onSave={(v) => updateLead(lead.id, { googleMapsUrl: v })} />
+              <EditField label="Priorité" value={lead.priority} onSave={(v) => updateLead(lead.id, { priority: v })} />
             </div>
             <div className="mt-3 flex gap-2">
               {lead.phone && (
@@ -116,6 +119,11 @@ export function LeadDetail({ lead }: { lead: FullLead }) {
                   <Button size="sm" variant="outline">Ouvrir le site</Button>
                 </a>
               )}
+              {lead.googleMapsUrl && (
+                <a href={lead.googleMapsUrl} target="_blank" rel="noreferrer">
+                  <Button size="sm" variant="outline">Ouvrir Maps</Button>
+                </a>
+              )}
             </div>
           </Card>
 
@@ -125,6 +133,7 @@ export function LeadDetail({ lead }: { lead: FullLead }) {
               <Stat label="Note Google" value={lead.googleRating ? `${lead.googleRating}★` : "—"} />
               <Stat label="Avis" value={lead.reviewCount?.toString() ?? "—"} />
               <Stat label="Site" value={lead.hasWebsite ? "Oui" : "Non"} />
+              <Stat label="Priorité" value={lead.priority ?? "—"} />
               <Stat label="Technos" value={lead.technologies.join(", ") || "—"} />
             </div>
           </Card>
