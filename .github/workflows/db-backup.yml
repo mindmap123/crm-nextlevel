@@ -9,18 +9,17 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
-
       - name: Dump database
         env:
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
           test -n "$DIRECT_URL"
           mkdir -p backups
-          pg_dump "$DIRECT_URL" --format=custom --no-owner --no-acl --file "backups/crm-nextlevel-$(date -u +%Y%m%dT%H%M%SZ).dump"
+          docker run --rm \
+            -e DIRECT_URL="$DIRECT_URL" \
+            -v "$PWD/backups:/backups" \
+            postgres:17-alpine \
+            sh -c 'pg_dump "$DIRECT_URL" --format=custom --no-owner --no-acl --file "/backups/crm-nextlevel-$(date -u +%Y%m%dT%H%M%SZ).dump"'
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
