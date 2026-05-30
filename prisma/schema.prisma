@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Source {
+  GOOGLE_MAPS
+  SHERLOCK_MAPS
+  MANUEL
+  IMPORT_CSV
+  IMPORT_JSON
+}
+
+enum Status {
+  BRUT
+  A_ENRICHIR
+  A_QUALIFIER
+  QUALIFIE
+  A_CONTACTER
+  CONTACTE
+  EN_DISCUSSION
+  PERDU
+  GAGNE
+}
+
+enum Tag {
+  LOCAL
+  SITE_FAIBLE
+  SANS_SITE
+  BON_POTENTIEL
+  A_VERIFIER
+  DOUBLON
+  PRIORITAIRE
+}
+
+enum TaskStatus {
+  TODO
+  DONE
+}
+
+enum ImportFormat {
+  CSV
+  JSON
+  MANUEL
+}
+
+model Lead {
+  id String @id @default(cuid())
+
+  // Identité / coordonnées
+  companyName String
+  contactName String?
+  phone       String?
+  email       String?
+  website     String?
+  address     String?
+  city        String?
+  source      Source  @default(MANUEL)
+  category    String?
+
+  // Signaux
+  googleRating Float?
+  reviewCount  Int?
+  hasWebsite   Boolean  @default(false)
+  technologies String[] @default([])
+
+  // Pipeline
+  score          Int       @default(0)
+  scoreBreakdown Json?
+  status         Status    @default(BRUT)
+  tags           Tag[]     @default([])
+  lastContactAt  DateTime?
+  nextAction     String?
+  nextActionAt   DateTime?
+  internalNotes  String?
+
+  // Champs normalisés (dedup)
+  normPhone  String?
+  normEmail  String?
+  normDomain String?
+  normName   String?
+
+  // Liens
+  masterId      String?
+  master        Lead?   @relation("Duplicates", fields: [masterId], references: [id], onDelete: SetNull)
+  duplicates    Lead[]  @relation("Duplicates")
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  tasks      Task[]
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([score])
+  @@index([city])
+  @@index([normPhone])
+  @@index([normEmail])
+  @@index([normDomain])
+  @@index([normName])
+  @@index([masterId])
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  leadId    String
+  lead      Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  title     String
+  status    TaskStatus @default(TODO)
+  dueAt     DateTime?
+  createdAt DateTime   @default(now())
+
+  @@index([leadId])
+  @@index([status, dueAt])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      String // note | status_change | score_change | manual_contact | import | dedup
+  body      String
+  actor     String?  @default("Warren")
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model ImportBatch {
+  id             String       @id @default(cuid())
+  filename       String
+  format         ImportFormat
+  rowCount       Int          @default(0)
+  importedCount  Int          @default(0)
+  duplicateCount Int          @default(0)
+  errorCount     Int          @default(0)
+  cursor         Int          @default(0) // offset traité pour reprise
+  done           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  leads Lead[]
+}
+
+model ScoreConfig {
+  id               Int      @id @default(1)
+  weights          Json
+  targetCategories String[] @default([])
+  targetCities     String[] @default([])
+  updatedAt        DateTime @updatedAt
+}
