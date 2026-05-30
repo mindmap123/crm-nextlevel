@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, Tag } from "@prisma/client";
 import {
   DEFAULT_WEIGHTS,
   DEFAULT_TARGET_CATEGORIES,
@@ -69,14 +69,31 @@ async function main() {
   for (const d of demo) {
     const norm = normalizeLead(d);
     const { score, breakdown } = scoreLead(d);
-    await prisma.lead.create({
-      data: {
-        ...d,
-        ...norm,
-        score,
-        scoreBreakdown: breakdown as object,
-        tags: d.hasWebsite ? [] : ["SANS_SITE"],
+    const existing = await prisma.lead.findFirst({
+      where: {
+        companyName: d.companyName,
+        city: d.city,
       },
+    });
+
+    const data = {
+      ...d,
+      ...norm,
+      score,
+      scoreBreakdown: breakdown as unknown as Prisma.InputJsonValue,
+      tags: d.hasWebsite ? [] : [Tag.SANS_SITE],
+    } satisfies Prisma.LeadCreateInput;
+
+    if (existing) {
+      await prisma.lead.update({
+        where: { id: existing.id },
+        data,
+      });
+      continue;
+    }
+
+    await prisma.lead.create({
+      data,
     });
   }
 

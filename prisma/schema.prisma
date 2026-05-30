@@ -105,7 +105,9 @@ model Lead {
   @@index([normEmail])
   @@index([normDomain])
   @@index([normName])
+  @@index([normName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Lead_normName_trgm")
   @@index([masterId])
+  @@index([tags], type: Gin, map: "Lead_tags_gin")
 }
 
 model Task {

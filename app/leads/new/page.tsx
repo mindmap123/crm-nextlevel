@@ -6,10 +6,45 @@ import { createLead } from "@/lib/actions";
 import { PageHeader, Card, Input, Button } from "@/components/ui";
 import type { Source } from "@prisma/client";
 
+type LeadForm = {
+  companyName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  website: string;
+  address: string;
+  city: string;
+  category: string;
+  source: Source;
+  googleRating: string;
+  reviewCount: string;
+};
+
+function LeadField({
+  label,
+  field,
+  value,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  field: keyof LeadForm;
+  value: string;
+  onChange: (field: keyof LeadForm, value: string) => void;
+  type?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <Input type={type} value={value} onChange={(e) => onChange(field, e.target.value)} />
+    </label>
+  );
+}
+
 export default function NewLeadPage() {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [f, setF] = useState({
+  const [f, setF] = useState<LeadForm>({
     companyName: "",
     contactName: "",
     phone: "",
@@ -23,7 +58,7 @@ export default function NewLeadPage() {
     reviewCount: "",
   });
 
-  const upd = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+  const upd = (k: keyof LeadForm, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const submit = () => {
     if (!f.companyName.trim()) return;
@@ -46,13 +81,6 @@ export default function NewLeadPage() {
     });
   };
 
-  const Field = ({ label, k, type = "text" }: { label: string; k: keyof typeof f; type?: string }) => (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <Input type={type} value={f[k]} onChange={(e) => upd(k, e.target.value)} />
-    </label>
-  );
-
   return (
     <div>
       <PageHeader title="Nouveau lead" subtitle="Saisie manuelle" />
@@ -60,15 +88,15 @@ export default function NewLeadPage() {
         <Card className="p-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Field label="Nom entreprise *" k="companyName" />
+              <LeadField label="Nom entreprise *" field="companyName" value={f.companyName} onChange={upd} />
             </div>
-            <Field label="Nom contact" k="contactName" />
-            <Field label="Ville" k="city" />
-            <Field label="Téléphone" k="phone" />
-            <Field label="Email" k="email" />
-            <Field label="Site web" k="website" />
-            <Field label="Catégorie" k="category" />
-            <Field label="Adresse" k="address" />
+            <LeadField label="Nom contact" field="contactName" value={f.contactName} onChange={upd} />
+            <LeadField label="Ville" field="city" value={f.city} onChange={upd} />
+            <LeadField label="Téléphone" field="phone" value={f.phone} onChange={upd} />
+            <LeadField label="Email" field="email" value={f.email} onChange={upd} />
+            <LeadField label="Site web" field="website" value={f.website} onChange={upd} />
+            <LeadField label="Catégorie" field="category" value={f.category} onChange={upd} />
+            <LeadField label="Adresse" field="address" value={f.address} onChange={upd} />
             <label className="flex flex-col gap-1 text-sm">
               <span className="text-muted-foreground">Source</span>
               <select
@@ -81,8 +109,8 @@ export default function NewLeadPage() {
                 <option value="SHERLOCK_MAPS">SherlockMaps</option>
               </select>
             </label>
-            <Field label="Note Google" k="googleRating" type="number" />
-            <Field label="Nombre d'avis" k="reviewCount" type="number" />
+            <LeadField label="Note Google" field="googleRating" value={f.googleRating} onChange={upd} type="number" />
+            <LeadField label="Nombre d'avis" field="reviewCount" value={f.reviewCount} onChange={upd} type="number" />
           </div>
           <div className="mt-6 flex gap-2">
             <Button onClick={submit} disabled={pending || !f.companyName.trim()}>
