@@ -20,6 +20,7 @@ const COLUMNS: Record<string, (l: Record<string, unknown>) => string | number | 
   status: (l) => STATUS_LABEL[l.status as keyof typeof STATUS_LABEL] ?? "",
   tags: (l) => (l.tags as string[]).map((t) => TAG_LABEL[t as keyof typeof TAG_LABEL]).join("; "),
 };
+const EXPORT_LIMIT = 5000;
 
 function csvCell(v: string | number | null): string {
   const s = String(v ?? "");
@@ -33,7 +34,15 @@ export async function GET(req: NextRequest) {
 
   const filters = parseFilters(sp);
   const where = sp.scope === "all" ? {} : buildWhere(filters);
-  const leads = await prisma.lead.findMany({ where, orderBy: buildOrderBy(filters), take: 5000 });
+  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({ where, orderBy: buildOrderBy(filters), take: EXPORT_LIMIT }),
+    prisma.lead.count({ where }),
+  ]);
+  const exportHeaders = {
+    "X-Total-Count": String(total),
+    "X-Exported-Count": String(leads.length),
+    "X-Result-Limit": String(EXPORT_LIMIT),
+  };
 
   if (format === "json") {
     const data = leads.map((l) =>
@@ -41,6 +50,7 @@ export async function GET(req: NextRequest) {
     );
     return new Response(JSON.stringify(data, null, 2), {
       headers: {
+        ...exportHeaders,
         "Content-Type": "application/json",
         "Content-Disposition": `attachment; filename="leads-${Date.now()}.json"`,
       },
@@ -54,6 +64,7 @@ export async function GET(req: NextRequest) {
   const csv = `${header}\n${body}`;
   return new Response(csv, {
     headers: {
+      ...exportHeaders,
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="leads-${Date.now()}.csv"`,
     },

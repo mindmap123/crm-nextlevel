@@ -6,6 +6,7 @@ import { LeadsTable } from "@/components/leads-table";
 import { PageHeader, Empty, Button } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+const LEADS_LIMIT = 200;
 
 export default async function LeadsPage({
   searchParams,
@@ -20,7 +21,7 @@ export default async function LeadsPage({
     prisma.lead.findMany({
       where,
       orderBy: buildOrderBy(filters),
-      take: 200,
+      take: LEADS_LIMIT,
     }),
     prisma.lead.count({ where }),
   ]);
@@ -44,6 +45,11 @@ export default async function LeadsPage({
         }
       />
       <FilterBar />
+      {total > LEADS_LIMIT && (
+        <div className="border-b bg-amber-50 px-6 py-2 text-sm text-amber-800">
+          Affichage limité aux {LEADS_LIMIT} premiers résultats sur {total}. Affinez les filtres.
+        </div>
+      )}
       {leads.length === 0 ? (
         <div className="p-6">
           <Empty

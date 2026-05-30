@@ -4,6 +4,8 @@ import {
   normalizeEmail,
   normalizeDomain,
   normalizeName,
+  normalizeCity,
+  normalizeLead,
 } from "../normalize";
 
 describe("normalizePhone", () => {
@@ -41,5 +43,21 @@ describe("normalizeName", () => {
   it("retire accents, ponctuation et forme juridique", () => {
     expect(normalizeName("Café de l'Été SARL")).toBe("cafe de l ete");
     expect(normalizeName("Garage Dupont SAS")).toBe("garage dupont");
+  });
+});
+
+describe("normalizeCity", () => {
+  it("normalise accents, casse et ponctuation", () => {
+    expect(normalizeCity(" Aix-en-Provence ")).toBe("aix en provence");
+    expect(normalizeCity("Éguilles")).toBe("eguilles");
+  });
+});
+
+describe("normalizeLead", () => {
+  it("inclut la ville normalisée pour la déduplication", () => {
+    expect(normalizeLead({ companyName: "Garage Dupont", city: "Aix-en-Provence" })).toMatchObject({
+      normName: "garage dupont",
+      normCity: "aix en provence",
+    });
   });
 });

@@ -62,11 +62,20 @@ export function normalizeName(input?: string | null): string | null {
   return joined || null;
 }
 
+export function normalizeCity(input?: string | null): string | null {
+  if (!input) return null;
+  let s = stripAccents(input.toLowerCase());
+  s = s.replace(/[^a-z0-9\s]/g, " ");
+  const joined = s.split(/\s+/).filter(Boolean).join(" ").trim();
+  return joined || null;
+}
+
 export interface NormalizedKeys {
   normPhone: string | null;
   normEmail: string | null;
   normDomain: string | null;
   normName: string | null;
+  normCity: string | null;
 }
 
 export function normalizeLead(lead: {
@@ -74,11 +83,13 @@ export function normalizeLead(lead: {
   email?: string | null;
   website?: string | null;
   companyName?: string | null;
+  city?: string | null;
 }): NormalizedKeys {
   return {
     normPhone: normalizePhone(lead.phone),
     normEmail: normalizeEmail(lead.email),
     normDomain: normalizeDomain(lead.website),
     normName: normalizeName(lead.companyName),
+    normCity: normalizeCity(lead.city),
   };
 }

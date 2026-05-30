@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Papa from "papaparse";
 import { Card, Button } from "@/components/ui";
-import { commitImportChunk } from "@/lib/actions";
+import { commitImportChunk, rollbackImportBatch } from "@/lib/actions";
 import type { ImportRow, ImportChunkResult } from "@/lib/types";
 import type { ImportFormat } from "@prisma/client";
 
@@ -65,11 +65,13 @@ export function ImportWizard() {
   const [format, setFormat] = useState<ImportFormat>("CSV");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<ImportChunkResult | null>(null);
+  const [rollbackCount, setRollbackCount] = useState<number | null>(null);
   const [pending, start] = useTransition();
 
   const onFile = (file: File) => {
     setFilename(file.name);
     setResult(null);
+    setRollbackCount(null);
     if (file.name.endsWith(".json")) {
       setFormat("JSON");
       file.text().then((txt) => {
@@ -112,6 +114,7 @@ export function ImportWizard() {
 
   const runImport = () => {
     setResult(null);
+    setRollbackCount(null);
     setProgress({ done: 0, total: mapped.length });
     start(async () => {
       let batchId: string | null = null;
@@ -237,6 +240,30 @@ export function ImportWizard() {
             <span className="text-yellow-600">? {result.toVerify} à vérifier</span>
             <span className="text-red-600">✕ {result.errors} erreurs</span>
           </div>
+          <div className="mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                if (!confirm("Annuler cet import et supprimer les leads créés par ce batch ?")) return;
+                start(async () => {
+                  const count = await rollbackImportBatch(result.batchId);
+                  setRollbackCount(count);
+                  setResult(null);
+                  setProgress(null);
+                });
+              }}
+            >
+              Rollback import
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {rollbackCount !== null && (
+        <Card className="p-5 text-sm text-muted-foreground">
+          Rollback terminé : {rollbackCount} lead(s) supprimé(s).
         </Card>
       )}
 
@@ -254,6 +281,7 @@ export function ImportWizard() {
             setHeaders([]);
             setResult(null);
             setProgress(null);
+            setRollbackCount(null);
           }}
         >
           Annuler

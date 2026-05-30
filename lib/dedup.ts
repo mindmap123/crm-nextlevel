@@ -8,6 +8,7 @@ export interface DedupCandidate {
   normEmail: string | null;
   normDomain: string | null;
   normName: string | null;
+  normCity?: string | null;
   city?: string | null;
 }
 
@@ -28,6 +29,10 @@ const TRIGRAM_THRESHOLD = 0.6;
 
 function cityKey(c?: string | null) {
   return c ? stripAccents(c.trim().toLowerCase()) : "";
+}
+
+function candidateCityKey(candidate: DedupCandidate) {
+  return candidate.normCity ?? cityKey(candidate.city);
 }
 
 /** Similarité trigramme (équivalent applicatif de pg_trgm pour l'aperçu import). */
@@ -52,21 +57,30 @@ export function findDuplicate(
   existing: DedupExisting[],
 ): DedupMatch | { existingId: null; strength: "none"; reason: string } {
   // Clés fortes
+  const strongMatches: Array<{ existing: DedupExisting; reason: string }> = [];
+  const candidateCity = candidateCityKey(candidate);
   for (const e of existing) {
+    const existingCity = e.normCity ?? cityKey(e.city);
     if (candidate.normPhone && e.normPhone && candidate.normPhone === e.normPhone)
-      return { existingId: e.id, strength: "strong", reason: "Téléphone identique" };
+      strongMatches.push({ existing: e, reason: "Téléphone identique" });
     if (candidate.normEmail && e.normEmail && candidate.normEmail === e.normEmail)
-      return { existingId: e.id, strength: "strong", reason: "Email identique" };
+      strongMatches.push({ existing: e, reason: "Email identique" });
     if (candidate.normDomain && e.normDomain && candidate.normDomain === e.normDomain)
-      return { existingId: e.id, strength: "strong", reason: "Domaine identique" };
+      strongMatches.push({ existing: e, reason: "Domaine identique" });
     if (
       candidate.normName &&
       e.normName &&
       candidate.normName === e.normName &&
-      cityKey(candidate.city) === cityKey(e.city) &&
-      cityKey(candidate.city) !== ""
+      candidateCity === existingCity &&
+      candidateCity !== ""
     )
-      return { existingId: e.id, strength: "strong", reason: "Nom + ville identiques" };
+      strongMatches.push({ existing: e, reason: "Nom + ville identiques" });
+  }
+  if (strongMatches.length > 0) {
+    const selected = strongMatches.reduce((best, next) =>
+      pickMaster(best.existing, next.existing).id === next.existing.id ? next : best,
+    );
+    return { existingId: selected.existing.id, strength: "strong", reason: selected.reason };
   }
 
   // Clé faible : nom proche + même ville -> vérification manuelle
@@ -74,7 +88,7 @@ export function findDuplicate(
   let bestSim = 0;
   for (const e of existing) {
     if (!candidate.normName || !e.normName) continue;
-    if (cityKey(candidate.city) !== cityKey(e.city)) continue;
+    if (candidateCity !== (e.normCity ?? cityKey(e.city))) continue;
     const sim = trigramSimilarity(candidate.normName, e.normName);
     if (sim >= TRIGRAM_THRESHOLD && sim > bestSim) {
       bestSim = sim;

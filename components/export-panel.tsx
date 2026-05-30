@@ -20,6 +20,7 @@ const COLUMNS: [string, string][] = [
   ["status", "Statut"],
   ["tags", "Tags"],
 ];
+const EXPORT_LIMIT = 5000;
 
 export function ExportPanel({ total }: { total: number }) {
   const [cols, setCols] = useState<Set<string>>(new Set(COLUMNS.map((c) => c[0])));
@@ -70,6 +71,11 @@ export function ExportPanel({ total }: { total: number }) {
           </label>
           <span className="ml-auto text-muted-foreground">{total} lead(s) — portée : tout</span>
         </div>
+        {total > EXPORT_LIMIT && (
+          <p className="mt-3 text-sm text-amber-700">
+            Export limité aux {EXPORT_LIMIT} premières lignes sur {total}. Filtrez avant export si besoin.
+          </p>
+        )}
       </Card>
 
       <Button disabled={cols.size === 0 || total === 0} onClick={download}>

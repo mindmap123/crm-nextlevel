@@ -17,19 +17,19 @@ Voir [ARCHITECTURE.md](ARCHITECTURE.md) pour la conception complète.
    ```
    DATABASE_URL  = endpoint POOLED  (…-pooler…)  → runtime Vercel
    DIRECT_URL    = endpoint DIRECT  (sans pooler) → migrations Prisma
+   CRM_BASIC_AUTH_USER / CRM_BASIC_AUTH_PASSWORD → accès CRM
    ```
 
-2. **Migration + extensions** :
+2. **Migration** :
 
    ```bash
    npm install
-   npx prisma migrate dev --name init      # crée les tables (via DIRECT_URL)
-   psql "$DIRECT_URL" -f prisma/sql/extensions.sql   # pg_trgm + index GIN
-   npm run db:seed                          # ScoreConfig + 3 leads démo
+   npm run db:migrate
+   npm run db:seed
    ```
 
-   > Le runtime fonctionne sans `pg_trgm` (le fuzzy "nom proche" de l'aperçu
-   > d'import est calculé en JS). L'extension sert au passage à l'échelle.
+   Les migrations activent `pg_trgm`, les index GIN et les contraintes uniques
+   de déduplication.
 
 3. **Lancer** :
 
@@ -57,6 +57,7 @@ Export (CSV/JSON, téléchargement local).
 
 ## Déploiement Vercel
 
-- Variables d'env : `DATABASE_URL` (poolé) + `DIRECT_URL` (direct).
+- Variables d'env : `DATABASE_URL` (poolé), `DIRECT_URL` (direct),
+  `CRM_BASIC_AUTH_USER`, `CRM_BASIC_AUTH_PASSWORD`.
 - Build command par défaut (`npm run build`) lance `prisma generate`.
 - Appliquer les migrations en CI/CD : `npx prisma migrate deploy`.

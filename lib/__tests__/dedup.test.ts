@@ -8,6 +8,7 @@ const existing = [
     normEmail: "a@b.fr",
     normDomain: "exemple.fr",
     normName: "garage dupont",
+    normCity: "marseille",
     city: "Marseille",
   },
 ];
@@ -29,11 +30,74 @@ describe("findDuplicate", () => {
         normEmail: null,
         normDomain: null,
         normName: "garage dupond",
-        city: "marseille",
+        normCity: "marseille",
+        city: "Marseille",
       },
       existing,
     );
     expect(m.strength).toBe("weak");
+  });
+
+  it("ville normalisée: ponctuation et accents ne cassent pas le fuzzy", () => {
+    const m = findDuplicate(
+      {
+        normPhone: null,
+        normEmail: null,
+        normDomain: null,
+        normName: "garage dupond",
+        normCity: "aix en provence",
+        city: "Aix en Provence",
+      },
+      [
+        {
+          id: "aix",
+          normPhone: null,
+          normEmail: null,
+          normDomain: null,
+          normName: "garage dupont",
+          normCity: "aix en provence",
+          city: "Aix-en-Provence",
+        },
+      ],
+    );
+    expect(m.strength).toBe("weak");
+    expect(m.existingId).toBe("aix");
+  });
+
+  it("choisit le match fort le plus complet quand plusieurs clés matchent", () => {
+    const m = findDuplicate(
+      {
+        normPhone: "491223344",
+        normEmail: "contact@example.fr",
+        normDomain: null,
+        normName: null,
+        normCity: null,
+      },
+      [
+        {
+          id: "phone",
+          normPhone: "491223344",
+          normEmail: null,
+          normDomain: null,
+          normName: null,
+          normCity: null,
+          filledCount: 2,
+          score: 10,
+        },
+        {
+          id: "email",
+          normPhone: null,
+          normEmail: "contact@example.fr",
+          normDomain: null,
+          normName: null,
+          normCity: null,
+          filledCount: 8,
+          score: 80,
+        },
+      ],
+    );
+    expect(m.strength).toBe("strong");
+    expect(m.existingId).toBe("email");
   });
 
   it("rien ne matche = none", () => {
