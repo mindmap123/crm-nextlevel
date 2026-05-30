@@ -15,11 +15,15 @@ function unauthorized() {
 }
 
 export function proxy(req: NextRequest) {
-  if (isAuthorized(req.headers.get("authorization"), USER, PASSWORD)) {
-    return NextResponse.next();
+  if (!isAuthorized(req.headers.get("authorization"), USER, PASSWORD)) {
+    return unauthorized();
   }
 
-  return unauthorized();
+  if (req.method === "POST" && req.nextUrl.pathname === "/leads") {
+    return NextResponse.rewrite(new URL("/api/leads", req.url));
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {

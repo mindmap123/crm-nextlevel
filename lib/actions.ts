@@ -95,7 +95,7 @@ function toDedupExisting(
 
 // ---------- CRUD lead ----------
 
-export async function createLead(input: LeadInput) {
+export async function createLeadFromApi(input: LeadInput) {
   const norm = normalizeLead(input);
   const candidates = await prisma.lead.findMany({
     where: candidateWhere(norm),
@@ -105,7 +105,7 @@ export async function createLead(input: LeadInput) {
   if (match.strength === "strong" && match.existingId) {
     await logActivity(match.existingId, "dedup", "Création manuelle bloquée : doublon fort détecté");
     revalidateLeadSurfaces(match.existingId);
-    return match.existingId;
+    return { id: match.existingId, duplicate: true };
   }
 
   const tags = match.strength === "weak" && match.existingId ? (["DOUBLON", "A_VERIFIER"] as Tag[]) : [];
@@ -124,7 +124,12 @@ export async function createLead(input: LeadInput) {
   await logActivity(lead.id, "note", "Lead créé manuellement");
   if (masterId) await logActivity(lead.id, "dedup", `Doublon potentiel de ${masterId}`);
   revalidateLeadSurfaces(lead.id);
-  return lead.id;
+  return { id: lead.id, duplicate: Boolean(masterId) };
+}
+
+export async function createLead(input: LeadInput) {
+  const result = await createLeadFromApi(input);
+  return result.id;
 }
 
 export async function updateLead(id: string, input: Partial<LeadInput>) {
